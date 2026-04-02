@@ -1,0 +1,6 @@
+# Private files - not for public repo
+sleep_dashboard.html
+garmin_data/
+garmin_sleep_analysis.csv
+garmin_sleep_full_history.csv
+.DS_Store

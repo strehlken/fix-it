@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sleep Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #F7F6F3;
+    --surface: #FFFFFF;
+    --surface-alt: #EFEEE9;
+    --text: #1A1A1A;
+    --text-secondary: #5C5C5C;
+    --text-tertiary: #8A8A8A;
+    --border: #E0DED8;
+    --accent-deep: #534AB7;
+    --accent-deep-bg: #EEEDFE;
+    --accent-rem: #2E7DD1;
+    --accent-rem-bg: #E6F1FB;
+    --accent-light: #888780;
+    --accent-light-bg: #F1EFE8;
+    --accent-stress: #D85A30;
+    --accent-hrv: #1D9E75;
+    --accent-rhr: #7F77DD;
+    --accent-score: #378ADD;
+    --accent-red: #C0392B;
+    --accent-red-light: #FAECE7;
+    --accent-orange: #E67E22;
+    --accent-orange-light: #FEF5E7;
+    --radius: 10px;
+    --radius-lg: 14px;
+  }
+
+  body {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    font-size: 16px;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .dashboard {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 3rem;
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+  }
+
+  /* --- Tab navigation --- */
+  .tab-nav {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 2rem;
+  }
+
+  .tab-nav button {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    padding: 10px 22px;
+    background: none;
+    border: none;
+    border-bottom: 2.5px solid transparent;
+    margin-bottom: -2px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .tab-nav button.active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+
+  .tab-nav button:hover:not(.active) {
+    color: var(--text-secondary);
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.1rem;
+  }
+
+  .metric-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .metric-value {
+    font-size: 26px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -1px;
+  }
+
+  .metric-delta {
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .delta-neg { color: var(--accent-red); }
+  .delta-pos { color: var(--accent-hrv); }
+  .delta-neutral { color: var(--text-tertiary); }
+
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 1rem;
+  }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .section-subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .toggle-group {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .toggle-btn {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 14px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .toggle-btn.active {
+    background: var(--text);
+    color: #fff;
+  }
+
+  .toggle-btn:hover:not(.active) {
+    background: var(--surface-alt);
+  }
+
+  .chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .chip-deep {
+    border-color: var(--accent-deep);
+    background: var(--accent-deep-bg);
+    color: var(--accent-deep);
+  }
+  .chip-deep.off {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text-tertiary);
+  }
+
+  .chip-rem {
+    border-color: var(--accent-rem);
+    background: var(--accent-rem-bg);
+    color: var(--accent-rem);
+  }
+  .chip-rem.off {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text-tertiary);
+  }
+
+  .chip-light {
+    border-color: var(--accent-light);
+    background: var(--accent-light-bg);
+    color: var(--accent-light);
+  }
+  .chip-light.off {
+    border-color: var(--border);
+    background: transparent;
+    color: var(--text-tertiary);
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--text);
+    cursor: pointer;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  #sleepChart { touch-action: none; }
+
+  .legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 12px;
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .insight-box {
+    background: var(--accent-red-light);
+    border-left: 4px solid var(--accent-red);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 1rem 1.2rem;
+    margin-top: 1.5rem;
+    font-size: 15px;
+    line-height: 1.6;
+    color: #4A1B0C;
+  }
+
+  .insight-box.orange {
+    background: var(--accent-orange-light);
+    border-left-color: var(--accent-orange);
+    color: #6E3A07;
+  }
+
+  .insight-box strong {
+    font-weight: 600;
+  }
+
+  .trend-stat {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    background: var(--surface-alt);
+    padding: 3px 10px;
+    border-radius: 6px;
+    margin-top: 8px;
+  }
+
+  /* --- Split comparison --- */
+  .split-container {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0;
+    margin-bottom: 1.5rem;
+  }
+
+  .split-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+  }
+
+  .split-col:first-child {
+    border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+    border-right: none;
+  }
+
+  .split-col:last-child {
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    border-left: none;
+  }
+
+  .split-divider {
+    width: 1px;
+    background: var(--border);
+    position: relative;
+  }
+
+  .split-divider::after {
+    content: 'vs';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg);
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+
+  .split-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .split-sub {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-bottom: 1rem;
+  }
+
+  .split-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--surface-alt);
+  }
+
+  .split-row:last-child { border-bottom: none; }
+
+  .split-metric-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .split-metric-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .split-metric-value.worse { color: var(--accent-red); }
+  .split-metric-value.better { color: var(--accent-hrv); }
+
+  @media (max-width: 700px) {
+    .metric-grid { grid-template-columns: repeat(2, 1fr); }
+    .section-header { flex-direction: column; }
+    .split-container { grid-template-columns: 1fr; }
+    .split-col:first-child { border-radius: var(--radius-lg) var(--radius-lg) 0 0; border-right: 1px solid var(--border); border-bottom: none; }
+    .split-col:last-child { border-radius: 0 0 var(--radius-lg) var(--radius-lg); border-left: 1px solid var(--border); }
+    .split-divider { width: 100%; height: 1px; }
+    .split-divider::after { top: 50%; left: 50%; }
+    h1 { font-size: 24px; }
+    .tab-nav button { padding: 8px 14px; font-size: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dashboard">
+  <h1>Sleep analysis</h1>
+  <p class="subtitle">282 nights &middot; Jun 15, 2025 &ndash; Apr 1, 2026</p>
+
+  <nav class="tab-nav">
+    <button class="active" onclick="switchTab('trends')">Trends</button>
+    <button onclick="switchTab('splits')">Lifestyle splits</button>
+  </nav>
+
+  <!-- ==================== TAB 1: TRENDS ==================== -->
+  <div id="tab-trends" class="tab-panel active">
+
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-label">Total sleep (last 14d)</div>
+        <div class="metric-value">6.7h</div>
+        <div class="metric-delta delta-neg">&darr; 42 min vs avg</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">REM sleep (last 14d)</div>
+        <div class="metric-value">54m</div>
+        <div class="metric-delta delta-neg">&darr; 20 min vs avg</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Sleep stress</div>
+        <div class="metric-value">20.6</div>
+        <div class="metric-delta delta-neg">&uarr; 3.6 vs avg</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">HRV (last 14d)</div>
+        <div class="metric-value">54<span style="font-size:16px;">ms</span></div>
+        <div class="metric-delta delta-neg">&darr; 15 vs avg</div>
+      </div>
+    </div>
+
+    <!-- SLEEP DURATION CHART -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Sleep duration by stage</div>
+        <div class="controls">
+          <div class="toggle-group" id="unitToggle">
+            <button class="toggle-btn" data-unit="min" onclick="setUnit('min')">Minutes</button>
+            <button class="toggle-btn active" data-unit="hrs" onclick="setUnit('hrs')">Hours</button>
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" id="labelsToggle" onchange="toggleLabels()"> Labels
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="trendToggle" onchange="toggleTrend()"> Trendline
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="inflectionToggle" onchange="buildSleepChart()"> Inflections
+          </label>
+        </div>
+      </div>
+      <div class="controls" style="margin-bottom: 14px;">
+        <div class="chip-group">
+          <span class="chip chip-deep" data-seg="deep" onclick="toggleSeg(this)">Deep</span>
+          <span class="chip chip-rem" data-seg="rem" onclick="toggleSeg(this)">REM</span>
+          <span class="chip chip-light" data-seg="light" onclick="toggleSeg(this)">Light</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height: 320px;">
+        <canvas id="sleepChart"></canvas>
+      </div>
+    </div>
+
+    <!-- STRESS + HRV CHART -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Sleep stress &amp; HRV</div>
+        <div class="controls">
+          <label class="checkbox-row">
+            <input type="checkbox" id="inflectionToggle2" onchange="buildStressChart()"> Inflections
+          </label>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height: 260px;">
+        <canvas id="stressChart"></canvas>
+      </div>
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-dot" style="background:#D85A30;"></span> Avg sleep stress</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#1D9E75;"></span> HRV (ms)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#7F77DD;"></span> Resting HR (bpm)</span>
+      </div>
+    </div>
+
+    <!-- SLEEP SCORE CHART -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Overall sleep score</div>
+        <div class="controls">
+          <label class="checkbox-row">
+            <input type="checkbox" id="inflectionToggle3" onchange="buildScoreChart()"> Inflections
+          </label>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height: 220px;">
+        <canvas id="scoreChart"></canvas>
+      </div>
+    </div>
+
+    <div class="insight-box">
+      <strong>Key finding:</strong> REM sleep is in a steady decline &mdash; from 90 min/night last summer to 54 min over the last 2 weeks.
+      57% of recent nights had REM under 60 min (vs 29% historically). Meanwhile sleep stress has climbed ~50%.
+      Deep sleep is actually strong, so physical recovery is fine &mdash; but the REM deficit maps directly to feeling cognitively dull.
+      Getting total sleep back above 7.5 hrs consistently is the highest-leverage fix, since REM concentrates in late-cycle hours.
+    </div>
+  </div>
+
+  <!-- ==================== TAB 2: LIFESTYLE SPLITS ==================== -->
+  <div id="tab-splits" class="tab-panel">
+
+    <!-- PRE/POST CLAUDE -->
+    <div class="section" style="padding: 1rem 1.5rem 0.5rem; margin-bottom: 1rem; background: transparent; border: none;">
+      <div class="section-title">Pre / post Claude &amp; late-night screen time</div>
+      <div class="section-subtitle">Pivot: Feb 28, 2026 &mdash; winter baseline (Jan&ndash;Feb) vs. post-Claude period</div>
+    </div>
+
+    <div class="split-container">
+      <div class="split-col">
+        <div class="split-title">Jan 1 &ndash; Feb 27</div>
+        <div class="split-sub">57 nights &middot; winter baseline</div>
+        <div class="split-row"><span class="split-metric-label">Bedtime (ET)</span><span class="split-metric-value">11:57 PM</span></div>
+        <div class="split-row"><span class="split-metric-label">Wake time (ET)</span><span class="split-metric-value">7:37 AM</span></div>
+        <div class="split-row"><span class="split-metric-label">Total sleep</span><span class="split-metric-value">7.4h</span></div>
+        <div class="split-row"><span class="split-metric-label">REM sleep</span><span class="split-metric-value">73 min</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep score</span><span class="split-metric-value">81.1</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep stress</span><span class="split-metric-value">18.8</span></div>
+        <div class="split-row"><span class="split-metric-label">HRV</span><span class="split-metric-value">59.8 ms</span></div>
+        <div class="split-row"><span class="split-metric-label">% nights REM &lt; 60m</span><span class="split-metric-value">28%</span></div>
+      </div>
+      <div class="split-divider"></div>
+      <div class="split-col">
+        <div class="split-title">Feb 28 &ndash; Apr 1</div>
+        <div class="split-sub">25 nights &middot; post-Claude</div>
+        <div class="split-row"><span class="split-metric-label">Bedtime (ET)</span><span class="split-metric-value worse">12:26 AM</span></div>
+        <div class="split-row"><span class="split-metric-label">Wake time (ET)</span><span class="split-metric-value delta-neutral">7:30 AM</span></div>
+        <div class="split-row"><span class="split-metric-label">Total sleep</span><span class="split-metric-value worse">6.9h</span></div>
+        <div class="split-row"><span class="split-metric-label">REM sleep</span><span class="split-metric-value worse">62 min</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep score</span><span class="split-metric-value worse">76.9</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep stress</span><span class="split-metric-value worse">20.3</span></div>
+        <div class="split-row"><span class="split-metric-label">HRV</span><span class="split-metric-value worse">54.3 ms</span></div>
+        <div class="split-row"><span class="split-metric-label">% nights REM &lt; 60m</span><span class="split-metric-value worse">48%</span></div>
+      </div>
+    </div>
+
+    <div class="insight-box">
+      <strong>Screen time effect:</strong> Bedtime shifted 29 minutes later while wake time barely moved,
+      compressing total sleep by 30 min/night. The lost time comes disproportionately from REM (&darr;11 min)
+      which concentrates in the final sleep cycles. Sleep score dropped 4.2 points; nearly half of nights now have critically low REM
+      vs. 28% in the control period.
+    </div>
+
+    <!-- RUNNING VS NO RUNNING -->
+    <div class="section" style="padding: 1rem 1.5rem 0.5rem; margin-bottom: 1rem; margin-top: 2rem; background: transparent; border: none;">
+      <div class="section-title">Running vs. no running</div>
+      <div class="section-subtitle">Last run: Jan 28, 2026 &mdash; comparing Sep&ndash;Jan (active) vs. Feb&ndash;Apr (sedentary). HRV data available from Sep 2025.</div>
+    </div>
+
+    <div class="split-container">
+      <div class="split-col">
+        <div class="split-title">Running (Sep 13 &ndash; Jan 28)</div>
+        <div class="split-sub">133 nights &middot; 3&ndash;6 runs/week</div>
+        <div class="split-row"><span class="split-metric-label">HRV</span><span class="split-metric-value">73.9 ms</span></div>
+        <div class="split-row"><span class="split-metric-label">Resting HR</span><span class="split-metric-value">52.9 bpm</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep stress</span><span class="split-metric-value">17.7</span></div>
+        <div class="split-row"><span class="split-metric-label">Total sleep</span><span class="split-metric-value">7.4h</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep score</span><span class="split-metric-value">81.1</span></div>
+        <div class="split-row"><span class="split-metric-label">Deep sleep</span><span class="split-metric-value">104 min</span></div>
+        <div class="split-row"><span class="split-metric-label">REM sleep</span><span class="split-metric-value">71 min</span></div>
+      </div>
+      <div class="split-divider"></div>
+      <div class="split-col">
+        <div class="split-title">No running (Jan 29 &ndash; Apr 1)</div>
+        <div class="split-sub">54 nights &middot; 0 runs/week</div>
+        <div class="split-row"><span class="split-metric-label">HRV</span><span class="split-metric-value worse">56.3 ms</span></div>
+        <div class="split-row"><span class="split-metric-label">Resting HR</span><span class="split-metric-value worse">55.6 bpm</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep stress</span><span class="split-metric-value worse">19.6</span></div>
+        <div class="split-row"><span class="split-metric-label">Total sleep</span><span class="split-metric-value worse">7.2h</span></div>
+        <div class="split-row"><span class="split-metric-label">Sleep score</span><span class="split-metric-value worse">79.5</span></div>
+        <div class="split-row"><span class="split-metric-label">Deep sleep</span><span class="split-metric-value better">112 min</span></div>
+        <div class="split-row"><span class="split-metric-label">REM sleep</span><span class="split-metric-value worse">69 min</span></div>
+      </div>
+    </div>
+
+    <!-- WEEKLY TIME SERIES: HRV + RHR + STRESS + RUNS -->
+    <div class="section">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Weekly HRV, resting HR &amp; running frequency</div>
+          <div class="section-subtitle">Vertical lines: last run (Jan 28) &amp; Claude pivot (Feb 28)</div>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height: 300px;">
+        <canvas id="runChart"></canvas>
+      </div>
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-dot" style="background:#1D9E75;"></span> HRV (ms)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#7F77DD;"></span> Resting HR (bpm)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#D85A30;"></span> Sleep stress</span>
+        <span class="legend-item"><span class="legend-dot" style="background:rgba(46,125,209,0.3); border: 1px solid #2E7DD1; width:12px; height:12px; border-radius:3px;"></span> Runs/week</span>
+      </div>
+    </div>
+
+    <div class="insight-box orange">
+      <strong>Running effect:</strong> HRV dropped 24% (73.9 &rarr; 56.3 ms) and resting HR rose 2.7 bpm after stopping running.
+      Sleep stress increased 11%. Interestingly, deep sleep actually <em>improved</em> (+8 min) &mdash; the body may be compensating for reduced daytime physical load.
+      But the autonomic fitness markers (HRV, RHR) tell a clear story: cardiovascular recovery capacity has declined significantly.
+    </div>
+
+  </div><!-- /tab-splits -->
+
+
+</div>
+
+<script>
+// ========== DATA ==========
+const DATA = {
+  labels: ["2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04"],
+  deep:   [91.9,97.2,97.4,108.0,106.1,98.7,109.4,103.1,110.2,111.7,147.0],
+  rem:    [90.3,79.9,82.9,73.1,69.2,70.8,75.5,71.9,74.4,62.6,48.0],
+  light:  [284.3,279.7,268.8,257.4,259.6,275.3,264.7,272.0,262.3,241.2,208.0],
+  total:  [466.5,456.9,449.2,438.5,434.9,444.7,449.5,447.0,447.0,415.5,403.0],
+  stress: [13.6,13.0,15.3,15.4,16.3,18.7,18.4,18.4,19.4,20.3,19.5],
+  hrv:    [null,null,null,82.6,84.5,77.6,67.2,62.5,56.6,54.5,49.0],
+  rhr:    [null,null,null,51.2,50.6,52.6,54.0,55.0,55.7,55.8,55.0],
+  score:  [86.1,85.3,85.1,83.4,80.8,80.1,82.4,81.2,81.1,77.0,75.0],
+  nights: [16,31,31,30,31,30,31,31,26,24,1]
+};
+
+// Weekly data for running chart (Sep 2025 onward)
+const WEEKLY = {
+  labels: [
+    "Sep 1","Sep 8","Sep 15","Sep 22","Sep 29",
+    "Oct 6","Oct 13","Oct 20","Oct 27",
+    "Nov 3","Nov 10","Nov 17","Nov 24",
+    "Dec 1","Dec 8","Dec 15","Dec 22","Dec 29",
+    "Jan 5","Jan 12","Jan 19","Jan 26",
+    "Feb 2","Feb 9","Feb 16","Feb 23",
+    "Mar 2","Mar 9","Mar 16","Mar 23","Mar 30"
+  ],
+  hrv:    [null,null,84.2,84.0,80.1,84.3,88.1,82.7,87.4,86.1,81.3,72.7,65.3,60.4,75.4,67.6,64.7,61.9,66.1,59.0,61.0,67.4,61.0,60.3,52.9,47.0,54.0,53.3,53.1,57.4,52.0],
+  rhr:    [null,null,51.2,50.6,51.3,50.1,50.4,51.4,50.3,51.1,52.1,53.6,54.4,54.6,52.9,54.6,54.0,55.6,54.9,55.4,55.1,53.3,54.7,54.3,57.0,58.5,58.0,55.7,55.4,55.4,56.3],
+  stress: [15.3,16.1,15.2,14.3,17.7,15.8,14.7,16.8,17.2,17.1,18.5,19.6,20.1,19.5,16.3,19.0,19.9,20.9,17.4,19.4,17.4,15.6,16.8,18.5,22.3,21.2,23.0,20.4,20.9,19.1,20.5],
+  runs:   [2,4,6,6,4,4,5,5,3,5,3,4,2,3,3,3,2,2,4,6,2,1,0,0,0,0,0,0,0,0,0],
+  // Inflection indices: Jan 26 week = index 21, Feb 23 week = index 25
+  lastRunIdx: 21,
+  claudeIdx: 25
+};
+
+const shortLabels = DATA.labels.map((l,i) => {
+  const [y,m] = l.split('-');
+  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return names[parseInt(m)-1] + (m==='01'||i===0 ? " '"+y.slice(2) : '');
+});
+
+// Month-label inflection indices for the main charts
+// Jan = index 7, Feb = index 8 in the monthly DATA.labels
+const INFLECTION_RUN = 7;   // Jan 2026 (last run Jan 28)
+const INFLECTION_CLAUDE = 8; // Feb 2026 (Claude pivot Feb 28)
+
+let unit = 'hrs';
+let showLabels = false;
+let showTrend = false;
+let trendStart = 0;
+let trendEnd = DATA.labels.length - 1;
+let segments = { deep: true, rem: true, light: true };
+let sleepChart, stressChart, scoreChart, runChart;
+
+const COLORS = {
+  deep: '#534AB7',
+  rem: '#2E7DD1',
+  light: '#A09F97',
+};
+
+function toUnit(val) {
+  if (unit === 'hrs') return Math.round(val / 6) / 10;
+  return Math.round(val);
+}
+function unitLabel() { return unit === 'hrs' ? 'hours' : 'minutes'; }
+function unitSuffix() { return unit === 'hrs' ? 'h' : 'm'; }
+
+// ========== TAB SWITCHING ==========
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector(`.tab-nav button[onclick="switchTab('${name}')"]`).classList.add('active');
+  if (name === 'splits' && !runChart) buildRunChart();
+}
+
+// ========== INFLECTION LINE PLUGIN ==========
+const inflectionPlugin = {
+  id: 'inflectionLines',
+  afterDraw(chart) {
+    if (!chart._inflections || !chart._inflections.length) return;
+    const ctx = chart.ctx;
+    const xAxis = chart.scales.x;
+    const yTop = chart.chartArea.top;
+    const yBot = chart.chartArea.bottom;
+
+    chart._inflections.forEach(inf => {
+      const x = xAxis.getPixelForValue(inf.index);
+      ctx.save();
+      ctx.strokeStyle = inf.color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x, yTop);
+      ctx.lineTo(x, yBot);
+      ctx.stroke();
+
+      // Label
+      ctx.setLineDash([]);
+      ctx.font = "500 11px 'DM Sans', sans-serif";
+      ctx.fillStyle = inf.color;
+      ctx.textAlign = 'center';
+      ctx.fillText(inf.label, x, yTop - 6);
+      ctx.restore();
+    });
+  }
+};
+
+// ========== DRAGGABLE TRENDLINE PLUGIN ==========
+// Draws: straight dashed line between trendStart and trendEnd,
+// two draggable handle circles, and a CMGR bubble above the midpoint.
+const HANDLE_RADIUS = 7;
+let dragging = null; // 'start' | 'end' | null
+
+function getTrendTotals() {
+  return DATA.labels.map((_,i) => {
+    let s = 0;
+    if (segments.deep) s += toUnit(DATA.deep[i]);
+    if (segments.rem) s += toUnit(DATA.rem[i]);
+    if (segments.light) s += toUnit(DATA.light[i]);
+    return s;
+  });
+}
+
+function getTrendPixels(chart) {
+  const xScale = chart.scales.x;
+  const yScale = chart.scales.y;
+  const totals = getTrendTotals();
+  const x1 = xScale.getPixelForValue(trendStart);
+  const y1 = yScale.getPixelForValue(totals[trendStart]);
+  const x2 = xScale.getPixelForValue(trendEnd);
+  const y2 = yScale.getPixelForValue(totals[trendEnd]);
+  return { x1, y1, x2, y2, totals };
+}
+
+const draggableTrendPlugin = {
+  id: 'draggableTrend',
+  afterDraw(chart) {
+    if (!showTrend || !chart._hasTrend) return;
+    const { x1, y1, x2, y2, totals } = getTrendPixels(chart);
+    const ctx = chart.ctx;
+
+    // --- Dashed line ---
+    ctx.save();
+    ctx.strokeStyle = '#C0392B';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([8, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // --- Handles ---
+    [{ x: x1, y: y1 }, { x: x2, y: y2 }].forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, HANDLE_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+      ctx.strokeStyle = '#C0392B';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+    });
+
+    // --- CMGR bubble ---
+    const vStart = totals[trendStart];
+    const vEnd = totals[trendEnd];
+    const nMonths = Math.abs(trendEnd - trendStart);
+    if (nMonths > 0 && vStart > 0) {
+      const cmgr = (Math.pow(vEnd / vStart, 1 / nMonths) - 1) * 100;
+      const u = unitSuffix();
+      const sign = cmgr < 0 ? '' : '+';
+      const text = `${sign}${cmgr.toFixed(1)}%/mo (${vStart}${u} \u2192 ${vEnd}${u}, ${nMonths}mo)`;
+
+      const mx = (x1 + x2) / 2;
+      const my = chart.chartArea.top + 16;
+
+      ctx.font = "500 12px 'JetBrains Mono', monospace";
+      const tm = ctx.measureText(text);
+      const pw = 12, ph = 6, r = 8;
+      const bw = tm.width + pw * 2;
+      const bh = 22 + ph * 2;
+      const bx = mx - bw / 2;
+      const by = my - bh / 2;
+
+      ctx.fillStyle = 'rgba(192, 57, 43, 0.1)';
+      ctx.strokeStyle = '#C0392B';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(bx, by, bw, bh, r);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#C0392B';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, mx, my);
+    }
+
+    ctx.restore();
+  }
+};
+
+// --- Mouse / touch interaction for dragging handles ---
+function attachDragListeners(canvas) {
+  function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function hitTest(pos) {
+    if (!sleepChart || !showTrend || !sleepChart._hasTrend) return null;
+    const { x1, y1, x2, y2 } = getTrendPixels(sleepChart);
+    const d1 = Math.hypot(pos.x - x1, pos.y - y1);
+    const d2 = Math.hypot(pos.x - x2, pos.y - y2);
+    const threshold = HANDLE_RADIUS + 8;
+    if (d1 < threshold && d1 <= d2) return 'start';
+    if (d2 < threshold) return 'end';
+    return null;
+  }
+
+  function nearestIndex(px) {
+    const xScale = sleepChart.scales.x;
+    const n = DATA.labels.length;
+    let best = 0, bestDist = Infinity;
+    for (let i = 0; i < n; i++) {
+      const d = Math.abs(xScale.getPixelForValue(i) - px);
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }
+
+  canvas.addEventListener('mousedown', e => {
+    const pos = getMousePos(e);
+    dragging = hitTest(pos);
+    if (dragging) { e.preventDefault(); canvas.style.cursor = 'grabbing'; }
+  });
+
+  canvas.addEventListener('touchstart', e => {
+    const pos = getMousePos(e);
+    dragging = hitTest(pos);
+    if (dragging) e.preventDefault();
+  }, { passive: false });
+
+  function onMove(e) {
+    const pos = getMousePos(e);
+    if (dragging) {
+      e.preventDefault();
+      const idx = nearestIndex(pos.x);
+      if (dragging === 'start' && idx < trendEnd) { trendStart = idx; sleepChart.draw(); }
+      else if (dragging === 'end' && idx > trendStart) { trendEnd = idx; sleepChart.draw(); }
+    } else {
+      // Hover cursor
+      const hit = hitTest(pos);
+      canvas.style.cursor = hit ? 'grab' : 'default';
+    }
+  }
+
+  canvas.addEventListener('mousemove', onMove);
+  canvas.addEventListener('touchmove', onMove, { passive: false });
+
+  function onUp() {
+    if (dragging) { dragging = null; canvas.style.cursor = 'default'; }
+  }
+  canvas.addEventListener('mouseup', onUp);
+  canvas.addEventListener('mouseleave', onUp);
+  canvas.addEventListener('touchend', onUp);
+}
+
+// ========== CHART BUILDERS ==========
+
+function getInflections(show) {
+  if (!show) return [];
+  return [
+    { index: INFLECTION_RUN, color: '#E67E22', label: 'Last run' },
+    { index: INFLECTION_CLAUDE, color: '#C0392B', label: 'Claude' }
+  ];
+}
+
+function buildSleepChart() {
+  const canvas = document.getElementById('sleepChart');
+  const ctx = canvas.getContext('2d');
+  if (sleepChart) sleepChart.destroy();
+
+  const showInflections = document.getElementById('inflectionToggle').checked;
+
+  const datasets = [];
+  if (segments.deep) datasets.push({
+    label: 'Deep', data: DATA.deep.map(toUnit),
+    backgroundColor: COLORS.deep, stack: 's', order: 2,
+    datalabels: { color: '#fff' }
+  });
+  if (segments.rem) datasets.push({
+    label: 'REM', data: DATA.rem.map(toUnit),
+    backgroundColor: COLORS.rem, stack: 's', order: 2,
+    datalabels: { color: '#fff' }
+  });
+  if (segments.light) datasets.push({
+    label: 'Light', data: DATA.light.map(toUnit),
+    backgroundColor: COLORS.light, stack: 's', order: 2,
+    datalabels: { color: '#fff' }
+  });
+
+  const hasTrend = showTrend && datasets.length > 0;
+
+  const maxBar = DATA.labels.reduce((mx, _, i) => {
+    let s = 0;
+    if (segments.deep) s += toUnit(DATA.deep[i]);
+    if (segments.rem) s += toUnit(DATA.rem[i]);
+    if (segments.light) s += toUnit(DATA.light[i]);
+    return Math.max(mx, s);
+  }, 0);
+  const yMax = Math.ceil(maxBar * 1.3);
+
+  sleepChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: shortLabels, datasets },
+    plugins: [ChartDataLabels, draggableTrendPlugin, inflectionPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: (showInflections || hasTrend) ? 24 : 0 } },
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          display: showLabels,
+          font: { family: 'JetBrains Mono', size: 11, weight: 500 },
+          formatter: v => v > 0 ? v + unitSuffix() : '',
+          anchor: 'center', align: 'center',
+        }
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#5C5C5C', font: { family: 'DM Sans', size: 13 } },
+          grid: { display: false }
+        },
+        y: {
+          stacked: true, max: yMax,
+          ticks: { color: '#5C5C5C', font: { family: 'DM Sans', size: 13 }, callback: v => v + unitSuffix() },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          title: { display: true, text: unitLabel(), color: '#8A8A8A', font: { family: 'DM Sans', size: 13 } }
+        },
+      }
+    }
+  });
+
+  sleepChart._hasTrend = hasTrend;
+  sleepChart._inflections = getInflections(showInflections);
+
+  // Attach drag listeners once
+  if (!canvas.__dragAttached) {
+    attachDragListeners(canvas);
+    canvas.__dragAttached = true;
+  }
+}
+
+function setUnit(u) {
+  unit = u;
+  document.querySelectorAll('#unitToggle .toggle-btn').forEach(b => b.classList.toggle('active', b.dataset.unit === u));
+  buildSleepChart();
+}
+
+function toggleLabels() {
+  showLabels = document.getElementById('labelsToggle').checked;
+  buildSleepChart();
+}
+
+function toggleTrend() {
+  showTrend = document.getElementById('trendToggle').checked;
+  if (showTrend) { trendStart = 0; trendEnd = DATA.labels.length - 1; }
+  buildSleepChart();
+}
+
+function toggleSeg(el) {
+  const seg = el.dataset.seg;
+  segments[seg] = !segments[seg];
+  el.classList.toggle('off', !segments[seg]);
+  buildSleepChart();
+}
+
+function buildStressChart() {
+  const ctx = document.getElementById('stressChart').getContext('2d');
+  if (stressChart) stressChart.destroy();
+  const showInf = document.getElementById('inflectionToggle2').checked;
+
+  stressChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: shortLabels,
+      datasets: [
+        {
+          label: 'Sleep Stress', data: DATA.stress,
+          borderColor: '#D85A30', backgroundColor: 'rgba(216,90,48,0.08)',
+          fill: true, tension: 0.35, pointRadius: 5, pointBackgroundColor: '#D85A30',
+          borderWidth: 2.5, yAxisID: 'y'
+        },
+        {
+          label: 'HRV', data: DATA.hrv,
+          borderColor: '#1D9E75', backgroundColor: 'transparent',
+          fill: false, tension: 0.35, pointRadius: 5, pointBackgroundColor: '#1D9E75',
+          borderWidth: 2.5, yAxisID: 'y1'
+        },
+        {
+          label: 'Resting HR', data: DATA.rhr,
+          borderColor: '#7F77DD', backgroundColor: 'transparent',
+          fill: false, tension: 0.35, pointRadius: 4, pointBackgroundColor: '#7F77DD',
+          borderWidth: 2, borderDash: [5,3], yAxisID: 'y1'
+        }
+      ]
+    },
+    plugins: [inflectionPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: showInf ? 18 : 0 } },
+      plugins: { legend: { display: false }, datalabels: { display: false } },
+      scales: {
+        x: { ticks: { color: '#5C5C5C', font: { family: 'DM Sans', size: 13 } }, grid: { display: false } },
+        y: {
+          position: 'left', min: 10, max: 25,
+          ticks: { color: '#D85A30', font: { family: 'DM Sans', size: 13 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          title: { display: true, text: 'Stress', color: '#D85A30', font: { family: 'DM Sans', size: 13 } }
+        },
+        y1: {
+          position: 'right', min: 40, max: 90,
+          ticks: { color: '#1D9E75', font: { family: 'DM Sans', size: 13 } },
+          grid: { display: false },
+          title: { display: true, text: 'HRV / RHR', color: '#1D9E75', font: { family: 'DM Sans', size: 13 } }
+        }
+      }
+    }
+  });
+  stressChart._inflections = getInflections(showInf);
+}
+
+function buildScoreChart() {
+  const ctx = document.getElementById('scoreChart').getContext('2d');
+  if (scoreChart) scoreChart.destroy();
+  const showInf = document.getElementById('inflectionToggle3').checked;
+
+  scoreChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: shortLabels,
+      datasets: [{
+        label: 'Sleep Score', data: DATA.score,
+        borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.08)',
+        fill: true, tension: 0.35, pointRadius: 5, pointBackgroundColor: '#378ADD',
+        borderWidth: 2.5
+      }]
+    },
+    plugins: [inflectionPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: showInf ? 18 : 0 } },
+      plugins: { legend: { display: false }, datalabels: { display: false } },
+      scales: {
+        x: { ticks: { color: '#5C5C5C', font: { family: 'DM Sans', size: 13 } }, grid: { display: false } },
+        y: {
+          min: 70, max: 90,
+          ticks: { color: '#5C5C5C', font: { family: 'DM Sans', size: 13 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          title: { display: true, text: 'Score', color: '#8A8A8A', font: { family: 'DM Sans', size: 13 } }
+        }
+      }
+    }
+  });
+  scoreChart._inflections = getInflections(showInf);
+}
+
+// ========== RUNNING CHART (weekly) ==========
+function buildRunChart() {
+  const ctx = document.getElementById('runChart').getContext('2d');
+  if (runChart) runChart.destroy();
+
+  const inflections = [
+    { index: WEEKLY.lastRunIdx, color: '#E67E22', label: 'Last run (Jan 28)' },
+    { index: WEEKLY.claudeIdx, color: '#C0392B', label: 'Claude (Feb 28)' }
+  ];
+
+  runChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: WEEKLY.labels,
+      datasets: [
+        {
+          label: 'Runs/week', data: WEEKLY.runs, type: 'bar',
+          backgroundColor: 'rgba(46,125,209,0.2)', borderColor: '#2E7DD1', borderWidth: 1,
+          yAxisID: 'yRuns', order: 3,
+          datalabels: { display: false }
+        },
+        {
+          label: 'HRV', data: WEEKLY.hrv, type: 'line',
+          borderColor: '#1D9E75', backgroundColor: 'transparent',
+          fill: false, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#1D9E75',
+          borderWidth: 2.5, yAxisID: 'y', order: 1,
+          datalabels: { display: false }
+        },
+        {
+          label: 'Resting HR', data: WEEKLY.rhr, type: 'line',
+          borderColor: '#7F77DD', backgroundColor: 'transparent',
+          fill: false, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#7F77DD',
+          borderWidth: 2, borderDash: [5,3], yAxisID: 'y', order: 1,
+          datalabels: { display: false }
+        },
+        {
+          label: 'Sleep Stress', data: WEEKLY.stress, type: 'line',
+          borderColor: '#D85A30', backgroundColor: 'rgba(216,90,48,0.06)',
+          fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: '#D85A30',
+          borderWidth: 2, yAxisID: 'yStress', order: 2,
+          datalabels: { display: false }
+        }
+      ]
+    },
+    plugins: [inflectionPlugin],
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 20 } },
+      plugins: { legend: { display: false }, datalabels: { display: false } },
+      scales: {
+        x: {
+          ticks: {
+            color: '#5C5C5C', font: { family: 'DM Sans', size: 11 },
+            maxRotation: 45, autoSkip: true, maxTicksLimit: 12
+          },
+          grid: { display: false }
+        },
+        y: {
+          position: 'left', min: 40, max: 95,
+          ticks: { color: '#1D9E75', font: { family: 'DM Sans', size: 12 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          title: { display: true, text: 'HRV / RHR', color: '#1D9E75', font: { family: 'DM Sans', size: 12 } }
+        },
+        yStress: {
+          position: 'right', min: 10, max: 28,
+          ticks: { color: '#D85A30', font: { family: 'DM Sans', size: 12 } },
+          grid: { display: false },
+          title: { display: true, text: 'Stress', color: '#D85A30', font: { family: 'DM Sans', size: 12 } }
+        },
+        yRuns: {
+          display: false, min: 0, max: 14 // tall max so bars stay short
+        }
+      }
+    }
+  });
+  runChart._inflections = inflections;
+}
+
+// ========== INIT ==========
+Chart.defaults.font.family = 'DM Sans';
+Chart.defaults.font.size = 14;
+
+buildSleepChart();
+buildStressChart();
+buildScoreChart();
+</script>
+</body>
+</html>
