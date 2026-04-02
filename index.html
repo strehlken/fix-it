@@ -762,7 +762,7 @@ function getTrendTotals() {
     if (segments.deep) s += toUnit(DATA.deep[i]);
     if (segments.rem) s += toUnit(DATA.rem[i]);
     if (segments.light) s += toUnit(DATA.light[i]);
-    return s;
+    return Math.round(s * 10) / 10;
   });
 }
 
@@ -814,7 +814,9 @@ const draggableTrendPlugin = {
       const cmgr = (Math.pow(vEnd / vStart, 1 / nMonths) - 1) * 100;
       const u = unitSuffix();
       const sign = cmgr < 0 ? '' : '+';
-      const text = `${sign}${cmgr.toFixed(1)}%/mo (${vStart}${u} \u2192 ${vEnd}${u}, ${nMonths}mo)`;
+      const vs = unit === 'hrs' ? vStart.toFixed(1) : Math.round(vStart);
+      const ve = unit === 'hrs' ? vEnd.toFixed(1) : Math.round(vEnd);
+      const text = `${sign}${cmgr.toFixed(1)}%/mo (${vs}${u} \u2192 ${ve}${u}, ${nMonths}mo)`;
 
       const mx = (x1 + x2) / 2;
       const my = chart.chartArea.top + 16;
